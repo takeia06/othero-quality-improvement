@@ -20,7 +20,7 @@ bool zeroStop(int count);  //置く場所がなくなったら、相手のター
 int canput(Othero O[8][8], int h, int w,bool turn); //置ける場所を探す。
 int searchB(Othero O[8][8], int a, int b, int c, int d);//黒の探索
 int searchW(Othero O[8][8], int a, int b, int c, int d);//白の探索
-bool changeB(Othero O[8][8],int minplace[],bool turn,int count);//ユーザ入力で置く場所決定
+void changeB(Othero O[8][8],int minplace[],bool turn,int count);//ユーザ入力で置く場所決定
 void changeW(Othero O[8][8],int minplace[],bool turn,int count);//cpu側の置く場所決定
 void changeB2(Othero O[8][8],int minplace[],bool turn,int count);//ユーザ入力しないで置く場所決定
 void flipDiscs(Othero O[8][8],bool turn,int num);//裏返す。
@@ -33,15 +33,15 @@ void cornerFront(int minplace[], int count, double score[],double weight);//角�
 void edge(int minplace[], int count, double score[],double weight);//端＋
 void edgeFront(int minplace[], int count, double score[],double weight);//端手前ー
 void around(Othero O[8][8], int minplace[], int count, double score[],double weight);//周りがどのくらい埋まってるか＋
+bool isInside(int y, int x); //盤面内かどうか
 
 int main(){
   // 配列の初期配置
-  int i, j, k, num1,num2, num3;
+  int i, j, k, num1,num2;
   bool turn;
   int count=0;
   int can_put[28];
   Othero O[8][8];
-  int changeColor=(turn==true)? WHITE:BLACK;
 
   // 構造体配列初期化
   for (i = 0; i < 8; i++){
@@ -87,7 +87,7 @@ int main(){
 
     //置ける場所がなかった時に相手のターンにする。
     if(zeroStop(count)==false){
-      turn=changeColor;
+      turn= !turn;
       printf("置ける場所がないので相手のターンになります。\n");
       continue;
     }
@@ -195,28 +195,37 @@ bool zeroStop(int count){
 //(3)置ける場所を探索
 int canput(Othero O[8][8], int h, int w,bool turn){
   int c, d; // 方向
-  int result=-1;
+  
+  if (O[h][w].color != NONE) return -1; // すでに石があるときは置けない
 
   for (c = -1; c <= 1; c++){
     for (d = -1; d <= 1; d++){
+      int ny, nx;
+
       if ((c != 0) || (d != 0)){
+        ny = h + c;
+        nx = w + d;
+
+        // 隣が盤面外ならその方向は見ない
+        if(!isInside(ny, nx)) continue;
+
         if(turn==true){
-          if (O[h + c][w + d].color == WHITE){
-            result = searchB(O, h + c, w + d, c, d);
+          if (O[ny][nx].color == WHITE){
+            if (searchB(O, ny, nx, c, d) != -1){
+              return h * 10 + w;
+            }
           }
-        }
-        else{
-          if (O[h + c][w + d].color == BLACK){
-           result = searchW(O, h + c, w + d, c, d);          
-          }
-        }
-          if (result != -1){
-            return h * 10 + w;
+        } else {
+          if(O[ny][nx].color == BLACK){
+            if (searchW(O, ny, nx, c, d) != -1){
+              return h * 10 + w;
+            }          
           }
         }
       }
     }
-   return result;
+  }
+   return -1;
 }
 
 //黒のおける場所
@@ -257,13 +266,11 @@ int searchW(Othero O[8][8], int a, int b, int c, int d){
 }
 
 //(4)ユーザ入力で盤面更新黒
-bool changeB(Othero O[8][8],int minplace[],bool turn,int count){
+void changeB(Othero O[8][8],int minplace[],bool turn,int count){
   int num;
   printf("置く場所を入力してください。[3,4] → 34 : ");
   scanf("%d", &num);
   if(isValidMoove(num,minplace,count)==true){
-    int a = num / 10;
-    int b = num % 10;
     flipDiscs(O,turn,num);
   }
 }
@@ -339,8 +346,8 @@ bool isValidMoove(int num, int minplace[], int count){
 
 //cpu(今はランダム)
 int cpu1(Othero O[8][8],int minplace[],int count){
+  (void)O;
   int num=(int)(rand()*(count)/(1+RAND_MAX));
-
   return minplace[num];
 }
 
@@ -459,6 +466,7 @@ void edgeFront(int minplace[], int count, double score[], double weight){
 void around(Othero O[8][8], int minplace[], int count, double score[],double weight){
   int dx,dy,x,y;
   int point;
+
   for(int i=0;i<count;i++){
     x = minplace[i] % 10;
     y = minplace[i] / 10;
@@ -472,9 +480,21 @@ void around(Othero O[8][8], int minplace[], int count, double score[],double wei
         // 一つ隣の座標
         int nx = x + dx;
         int ny = y + dy;
-        if(O[ny][nx].color!=NONE) point++;
+
+        // 盤面内の時だけ参照
+        if(isInside(ny, nx) && O[ny][nx].color != NONE){
+          point++;
+        }
       }
     }
     score[i]=score[i]+(point*weight);
   }
 }
+
+//追加修正
+
+//端・角で落ちないようにする
+bool isInside(int y, int x) {
+    return (y >= 0 && y < 8 && x >= 0 && x < 8);
+}
+
