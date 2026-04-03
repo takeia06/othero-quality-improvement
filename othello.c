@@ -161,6 +161,9 @@ int main(){
 
   }
   judge(O); // 終了判定
+  printf("終了しました。Enterキーを押すと閉じます。");
+  getchar(); 
+  getchar();
   return 0;
 }
 
