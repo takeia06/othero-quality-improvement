@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <stdlib.h>
- #include "display.h"
+#include "display.h"
 
 #define BLACK 1
 #define WHITE -1
@@ -16,30 +16,56 @@ typedef struct Othero
 void display(Othero O[8][8]); //表示関数
 void judge(Othero O[8][8]);  //勝敗関数
 bool stop(Othero O[8][8]);  //盤面がどちらかの色のみ、またはNONEがなくなったとき止める
-bool zeroStop(int count);  //置く場所がなくなったら、相手のターンにする。
-int canput(Othero O[8][8], int h, int w,bool turn); //置ける場所を探す。
+int canput(Othero O[8][8], int h, int w,bool turn,bool humanIsBlack); //置ける場所を探す。
 int searchB(Othero O[8][8], int a, int b, int c, int d);//黒の探索
 int searchW(Othero O[8][8], int a, int b, int c, int d);//白の探索
-void changeB(Othero O[8][8],int minplace[],bool turn,int count);//ユーザ入力で置く場所決定
-void changeW(Othero O[8][8],int minplace[],bool turn,int count);//cpu側の置く場所決定
-void changeB2(Othero O[8][8],int minplace[],bool turn,int count);//ユーザ入力しないで置く場所決定
-void flipDiscs(Othero O[8][8],bool turn,int num);//裏返す。
+bool changeB(Othero O[8][8],int minplace[],bool turn,bool humanIsBlack,int count);//ユーザ入力で置く場所決定
+void changeW(Othero O[8][8],int minplace[],bool turn,bool humanIsBlack,int count);//cpu側の置く場所決定
+void changeB2(Othero O[8][8],int minplace[],bool turn,bool humanIsBlack,int count);//ユーザ入力しないで置く場所決定
+
+void flipDiscs(Othero O[8][8],bool turn,bool humanIsBlack,int num);//裏返す。
+
 bool isValidMoove(int num, int minplace[], int count);//ユーザ入力の判断
-int cpu1(Othero O[8][8],int minplace[],int);//
-int cpu2(Othero O[8][8],int minplace[],int);//
+
+int cpu1(Othero O[8][8],int minplace[],int count);
+int cpu2(Othero O[8][8],int minplace[],int count);
+
 void amount(Othero O[8][8], int minplace[], int count, double score[], double weight);//裏返す量＋
 void corner(int minplace[], int count, double score[], double weight);//角＋
 void cornerFront(int minplace[], int count, double score[],double weight);//角の前ー
 void edge(int minplace[], int count, double score[],double weight);//端＋
 void edgeFront(int minplace[], int count, double score[],double weight);//端手前ー
 void around(Othero O[8][8], int minplace[], int count, double score[],double weight);//周りがどのくらい埋まってるか＋
+
+int currentStone(bool turn, bool humanIsBlack); //自分の石を返す
+int opponentStone(bool turn, bool humanIsBlack); //相手の石を返す
 bool isInside(int y, int x); //盤面内かどうか
+
+int currentStone(bool turn, bool humanIsBlack) {
+    if (turn == true) {
+        return humanIsBlack ? BLACK : WHITE;
+    } else {
+        return humanIsBlack ? WHITE : BLACK;
+    }
+}
+
+int opponentStone(bool turn, bool humanIsBlack) {
+  int mine = currentStone(turn, humanIsBlack);
+  return (mine == BLACK) ? WHITE : BLACK;
+}
+
+//端・角で落ちないようにする
+bool isInside(int y, int x) {
+    return (y >= 0 && y < 8 && x >= 0 && x < 8);
+}
 
 int main(){
   // 配列の初期配置
   int i, j, k, num1,num2;
   bool turn;
+  bool humanIsBlack;
   int count=0;
+  int passCount = 0; // パスの回数をカウント
   int can_put[28];
   Othero O[8][8];
 
@@ -47,17 +73,25 @@ int main(){
   for (i = 0; i < 8; i++){
     for (j = 0; j < 8; j++){
       O[i][j].color = NONE;
-
-
     }
   }
-  O[3][3].color = WHITE; O[3][4].color = BLACK; O[4][3].color = BLACK; O[4][4].color = WHITE;
+
+  O[3][3].color = WHITE; 
+  O[3][4].color = BLACK; 
+  O[4][3].color = BLACK; 
+  O[4][4].color = WHITE;
 
   // ターン決め
   printf("先攻(1)、後攻(2)を選択してください。:");
   scanf("%d", &num1);
-  if (num1 == 1)  turn = true; // 人間から
-  else  turn = false; // コンピュータから
+
+  if (num1 == 1) { 
+    humanIsBlack = true; // 人間が黒
+    turn = true; // 黒が先手なので人間から開始
+  }  else {  
+    humanIsBlack = false; // 人間が白
+    turn = false; // 黒が先手なのでCPUから開始
+  }
 
   
 
@@ -75,7 +109,7 @@ int main(){
       for (j = 0; j < 8; j++){
         if (O[i][j].color == NONE){
 
-          num2 = canput(O, i, j,turn);
+          num2 = canput(O, i, j, turn, humanIsBlack);
           if(num2!=-1){
             can_put[k]=num2;
             k++;
@@ -85,12 +119,20 @@ int main(){
       }
     }
 
-    //置ける場所がなかった時に相手のターンにする。
-    if(zeroStop(count)==false){
-      turn= !turn;
-      printf("置ける場所がないので相手のターンになります。\n");
-      continue;
+    if (count == 0) { // 置ける場所がない場合
+      passCount++;
+      printf("置ける場所がありません。パスします。\n");
+
+      if (passCount == 2){
+        printf("両社ともおける場所がないため終了します。\n");
+        break;
+      }
+      turn = !turn; // ターンを切り替える
+      continue; // 次のループ
     }
+
+    passCount = 0;
+
 
     //can_putを最小にする
     int minplace[count];
@@ -106,14 +148,13 @@ int main(){
     
     //置く場所決める、盤面更新
     if(turn==true){  
-      changeB(O,minplace,turn,count);
-      //changeB2(O,minplace,turn,count);
-      turn=false;
+      changeB(O, minplace, turn, humanIsBlack, count);
     }
-    else if(turn==false){
-      changeW(O,minplace,turn,count);
-      turn=true;
+    else {
+      changeW(O, minplace, turn, humanIsBlack, count);
     }
+
+    turn = !turn; // ターンを切り替える
 
     //盤面をみて、終了するかどうか判断
     if(stop(O)==false) break;
@@ -186,46 +227,39 @@ bool stop(Othero O[8][8]){
   else return false;
 }
 
-//置ける場所がないときに相手のターンにする。
-bool zeroStop(int count){
-  if(count==0) return false;
-  return true;
-}
-
 //(3)置ける場所を探索
-int canput(Othero O[8][8], int h, int w,bool turn){
+int canput (Othero O[8][8], int h, int w, bool turn, bool humanIsBlack){
+
   int c, d; // 方向
-  
-  if (O[h][w].color != NONE) return -1; // すでに石があるときは置けない
+  int result = -1;
+  int mine = currentStone(turn, humanIsBlack);
 
   for (c = -1; c <= 1; c++){
     for (d = -1; d <= 1; d++){
-      int ny, nx;
+      if ((c != 0) || (d != 0)) continue; // 方向が0,0のときはスキップ
 
-      if ((c != 0) || (d != 0)){
-        ny = h + c;
-        nx = w + d;
+      int ny = h + c;
+      int nx = w + d;
 
-        // 隣が盤面外ならその方向は見ない
-        if(!isInside(ny, nx)) continue;
+      // 隣が盤面外ならその方向は見ない
+      if(!isInside(ny, nx)) continue;
 
-        if(turn==true){
-          if (O[ny][nx].color == WHITE){
-            if (searchB(O, ny, nx, c, d) != -1){
-              return h * 10 + w;
-            }
-          }
-        } else {
-          if(O[ny][nx].color == BLACK){
-            if (searchW(O, ny, nx, c, d) != -1){
-              return h * 10 + w;
-            }          
-          }
+      if(mine == BLACK){
+        if (O[ny][nx].color == WHITE){
+          result = searchB(O, ny, nx, c, d);
+        } 
+      }else {
+        if(O[ny][nx].color == BLACK){
+          result = searchW(O, ny, nx, c, d);    
         }
+      }
+
+      if (result != -1) {
+        return h * 10 + w; // 置ける場所を返す
       }
     }
   }
-   return -1;
+   return result;
 }
 
 //黒のおける場所
@@ -266,71 +300,65 @@ int searchW(Othero O[8][8], int a, int b, int c, int d){
 }
 
 //(4)ユーザ入力で盤面更新黒
-void changeB(Othero O[8][8],int minplace[],bool turn,int count){
+bool changeB(Othero O[8][8],int minplace[],bool turn,bool humanIsBlack,int count){
   int num;
   printf("置く場所を入力してください。[3,4] → 34 : ");
   scanf("%d", &num);
+
   if(isValidMoove(num,minplace,count)==true){
-    flipDiscs(O,turn,num);
+    flipDiscs(O,turn,humanIsBlack,num);
   }
+
+  return false;
 }
 
 //cpu盤面更新
-void changeW(Othero O[8][8],int minplace[], bool turn,int count){
-  int num;
-
-  num=cpu2(O,minplace,count);
-  
-  flipDiscs(O,turn,num);
-
+void changeW(Othero O[8][8],int minplace[], bool turn,bool humanIsBlack,int count){
+  int num = cpu2(O,minplace,count);
+  flipDiscs(O,turn,humanIsBlack,num);
 }
 
 //ユーザ入力なし盤面更新黒
-void changeB2(Othero O[8][8],int minplace[], bool turn,int count){
-  int num;
-
-  num=cpu1(O,minplace,count);
-  
-  flipDiscs(O,turn,num);
-
+void changeB2(Othero O[8][8],int minplace[], bool turn,bool humanIsBlack,int count){
+  int num = cpu1(O,minplace,count);
+  flipDiscs(O,turn,humanIsBlack,num);
 }
 
 //裏返す
-void flipDiscs(Othero O[8][8],bool turn,int num){
+void flipDiscs(Othero O[8][8],bool turn,bool humanIsBlack,int num){
   int x = num % 10;
   int y = num / 10;
   int dx,dy;
-  int opponent=(turn==true)? WHITE:BLACK;
-  int mine=(turn==true)? BLACK:WHITE;
+  int mine = currentStone(turn, humanIsBlack);
+  int opponent = opponentStone(turn, humanIsBlack);
 
   printf("%d,%d\n",y,x);
   O[y][x].color=mine;
 
   for(dx=-1;dx<=1;dx++){
     for (dy = -1; dy <= 1; dy++) {
-            // x,yと同じ座標はスキップ
-            if (dx == 0 && dy == 0) continue;
+      if (dx == 0 && dy == 0) continue; // x,yと同じ座標はスキップ
 
-            // 一つ隣の座標
-            int nx = x + dx;
-            int ny = y + dy;
+      // 一つ隣の座標
+      int nx = x + dx;
+      int ny = y + dy;
 
-            // 隣が盤面の内部であり、かつ敵の石がある間ループを続ける
-            while (nx >= 0 && nx < 8 && ny >= 0 && ny < 8 && O[ny][nx].color == opponent) {
-                nx += dx;
-                ny += dy;
-            }
+      // 隣が盤面の内部であり、かつ敵の石がある間ループを続ける
+      while (isInside(ny, nx) && O[ny][nx].color == opponent) {
+          nx += dx;
+          ny += dy;
+      }
 
-            // ループが終わった場所が盤面内で、かつ自分の石があるなら
-            if (nx >= 0 && nx < 8 && ny >= 0 && ny < 8 && O[ny][nx].color == mine) {
-                // ひっくり返す処理を行う
-                while (true) {
-                    nx -= dx;
-                    ny -= dy;
-                    if (nx == x && ny == y) break;
-                    O[ny][nx].color = mine;
-                }
-            }
+      // ループが終わった場所が盤面内で、かつ自分の石があるなら
+      if (isInside(ny, nx) && O[ny][nx].color == mine) {
+          // ひっくり返す処理を行う
+          while (true) {
+              nx -= dx;
+              ny -= dy;
+              if (nx == x && ny == y) break;
+              O[ny][nx].color = mine;
+          }
+      }
     }
   }
 }
@@ -399,18 +427,19 @@ void amount(Othero O[8][8], int minplace[], int count, double score[], double we
         int ny = y + dy;
 
         // 隣が盤面の内部であり、かつ敵の石がある間ループを続ける
-        while (nx >= 0 && nx < 8 && ny >= 0 && ny < 8 && O[ny][nx].color == opponent) {
+        while (isInside(ny, nx) && O[ny][nx].color == opponent) {
           nx += dx;
           ny += dy;
         }
         // ループが終わった場所が盤面内で、かつ自分の石があるなら
-        if (nx >= 0 && nx < 8 && ny >= 0 && ny < 8 && O[ny][nx].color == mine) {
+        if (isInside(ny, nx) && O[ny][nx].color == mine) {
           // ひっくり返す処理を行う
           while (true) {
             nx -= dx;
             ny -= dy;
             if (nx == x && ny == y) break;
-              score[i]=score[i]+(1*weight);//重み
+            O[ny][nx].color = mine;
+            score[i]=score[i]+(1*weight);//重み
             }
           }
       }
@@ -491,10 +520,6 @@ void around(Othero O[8][8], int minplace[], int count, double score[],double wei
   }
 }
 
-//追加修正
 
-//端・角で落ちないようにする
-bool isInside(int y, int x) {
-    return (y >= 0 && y < 8 && x >= 0 && x < 8);
-}
+
 
