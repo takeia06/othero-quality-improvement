@@ -17,8 +17,7 @@ void display(Othero O[8][8]); //表示関数
 void judge(Othero O[8][8]);  //勝敗関数
 bool stop(Othero O[8][8]);  //盤面がどちらかの色のみ、またはNONEがなくなったとき止める
 int canput(Othero O[8][8], int h, int w,bool turn,bool humanIsBlack); //置ける場所を探す。
-int searchB(Othero O[8][8], int a, int b, int c, int d);//黒の探索
-int searchW(Othero O[8][8], int a, int b, int c, int d);//白の探索
+bool searchDirection(Othero O[8][8], int y, int x, int dy, int dx, int mine, int opponent); //置ける場所を探すときの、特定の方向を探す関数
 bool changeB(Othero O[8][8],int minplace[],bool turn,bool humanIsBlack,int count);//ユーザ入力で置く場所決定
 void changeW(Othero O[8][8],int minplace[],bool turn,bool humanIsBlack,int count);//cpu側の置く場所決定
 void changeB2(Othero O[8][8],int minplace[],bool turn,bool humanIsBlack,int count);//ユーザ入力しないで置く場所決定
@@ -99,6 +98,7 @@ int main(){
   for(i=0;i<60;i++){
     display(O); // 盤面表示
     // can_putの初期化
+    count = 0;
     for (k = 0; k < 28; k++){
      can_put[k] = -1;
     }
@@ -230,77 +230,48 @@ bool stop(Othero O[8][8]){
   else return false;
 }
 
-//(3)置ける場所を探索
-int canput (Othero O[8][8], int h, int w, bool turn, bool humanIsBlack){
 
-  int c, d; // 方向
-  int result = -1;
-  int mine = currentStone(turn, humanIsBlack);
+bool searchDirection(Othero O[8][8], int y, int x, int dy, int dx, int mine, int opponent) {
+  int ny = y + dy;
+  int nx = x + dx;
+  bool foundOpponent = false;
 
-  for (c = -1; c <= 1; c++){
-    for (d = -1; d <= 1; d++){
-      if ((c != 0) || (d != 0)) continue; // 方向が0,0のときはスキップ
-
-      int ny = h + c;
-      int nx = w + d;
-
-      // 隣が盤面外ならその方向は見ない
-      if(!isInside(ny, nx)) continue;
-
-      if(mine == BLACK){
-        if (O[ny][nx].color == WHITE){
-          result = searchB(O, ny, nx, c, d);
-        } 
-      }else {
-        if(O[ny][nx].color == BLACK){
-          result = searchW(O, ny, nx, c, d);    
-        }
-      }
-
-      if (result != -1) {
-        return h * 10 + w; // 置ける場所を返す
-      }
-    }
-  }
-   return result;
-}
-
-//黒のおける場所
-int searchB(Othero O[8][8], int a, int b, int c, int d)
-{
-  int i,j;
-  // printf("%d,%d\n",i,j);
-  for (i = a + c,j = b + d;(i>=0 && i < 8) && (j >= 0 && j< 8); i += c, j += d){
-
-    if (O[i][j].color == BLACK)
-      return 1;
-    else if (O[i][j].color == WHITE){
-      if (i == -1 || i == 8)     return -1;
-
+  while (isInside(ny, nx)) {
+    if (O[ny][nx].color == opponent) {
+      foundOpponent = true;
+      ny += dy;
+      nx += dx;
       continue;
     }
-    else if (O[i][j].color == NONE)
-      return -1;
+    if (O[ny][nx].color == mine) {
+      return foundOpponent; // 敵の石を見つけた後に自分の石があれば置ける
+    }
+    return false; // 空白または盤面外に出た場合は置けない
   }
+  return false; // 盤面外に出た場合は置けない
+}
+
+//(3)置ける場所を探す関数
+int canput(Othero O[8][8], int y, int x, bool turn, bool humanIsBlack){
+  int mine = currentStone(turn, humanIsBlack);
+  int opponent = opponentStone(turn, humanIsBlack);
+
+  if (!isInside(y, x)) return -1;
+  if (O[y][x].color != NONE) return -1;
+
+  for (int dy = -1; dy <= 1; dy++){
+    for (int dx = -1; dx <= 1; dx++){
+      if (dy == 0 && dx == 0) continue;
+
+      if (searchDirection(O, y, x, dy, dx, mine, opponent)) {
+        return y * 10 + x;
+      }
+    }
+  }
+
   return -1;
 }
 
-//白のおける場所
-int searchW(Othero O[8][8], int a, int b, int c, int d){
-  int i,j; // ループ用
-  for (i = a + c,j = b + d;(i>=0 && i < 8) && (j >= 0 && j< 8); i += c, j += d){
-
-    if (O[i][j].color == WHITE)
-      return 1;
-    else if (O[i][j].color == BLACK){
-      if ((i == -1) || (i == 8))
-        return -1;
-      continue;
-    }
-    else if (O[i][j].color == NONE)
-      return -1;
-  }return -1;
-}
 
 //(4)ユーザ入力で盤面更新黒
 bool changeB(Othero O[8][8],int minplace[],bool turn,bool humanIsBlack,int count){
@@ -310,6 +281,7 @@ bool changeB(Othero O[8][8],int minplace[],bool turn,bool humanIsBlack,int count
 
   if(isValidMoove(num,minplace,count)==true){
     flipDiscs(O,turn,humanIsBlack,num);
+    return true;
   }
 
   return false;
