@@ -1,19 +1,11 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <stdlib.h>
+#include "othello.h"
 #include "display.h"
 
-#define BLACK 1
-#define WHITE -1
-#define NONE 0
 
-typedef struct Othero
-{
-  int color;
-  int value;
-} Othero;
 
-void display(Othero O[8][8]); //表示関数
 void judge(Othero O[8][8], bool humanIsBlack);  //勝敗関数
 bool stop(Othero O[8][8]);  //盤面がどちらかの色のみ、またはNONEがなくなったとき止める
 int canput(Othero O[8][8], int y, int x, bool turn, bool humanIsBlack); //置ける場所を探す。
@@ -227,37 +219,16 @@ int main(){
   return 0;
 }
 
-//(1)盤面を表示する関数。
-void display(Othero O[8][8]){
-  int i, j;
-  printf(" ０１２３４５６７\n");
-  for (i = 0; i < 8; i++)
-  {
-    printf("%d",i);
-    for (j = 0; j < 8; j++)
-    {
-      // printf(array[i][j]);
-      if (O[i][j].color == WHITE)
-        printf("〇");
-      else if (O[i][j].color == BLACK)
-        printf("Ｘ");
-      else
-        printf("・");
-    }
-    printf("\n");
-  }
-}
 
 //(2)終了判定関数
-void judge(Othero O[8][8], bool humanIsBlack)
-{
+void judge(Othero O[8][8], bool humanIsBlack){
   int black = 0;
   int white = 0;
 
-  for (int y = 0; y < 8; y++)  {
-    for (int x = 0; x < 8; x++)    {
-      if (O[y][x].color == BLACK)   black++;
-      else if (O[y][x].color == WHITE)  white++;
+  for (int y = 0; y < 8; y++) {
+    for (int x = 0; x < 8; x++) {
+      if (O[y][x].color == BLACK) black++;
+      else if (O[y][x].color == WHITE) white++;
     }
   }
 
@@ -266,11 +237,16 @@ void judge(Othero O[8][8], bool humanIsBlack)
     return;
   }
 
-  bool humanWin = humanIsBlack ? (black > white) : (white > black);
-  if (humanWin) {
-    printf("あなたの勝ちです！黒：%d、白：%d\n", black, white);
+  if (humanIsBlack) {
+    if (black > white)
+      printf("あなたの勝ちです。黒：%d、白：%d\n", black, white);
+    else
+      printf("あなたの負けです。黒：%d、白：%d\n", black, white);
   } else {
-    printf("あなたの負けです。黒：%d、白：%d\n", black, white);
+    if (white > black)
+      printf("あなたの勝ちです。黒：%d、白：%d\n", black, white);
+    else
+      printf("あなたの負けです。黒：%d、白：%d\n", black, white);
   }
 }
 

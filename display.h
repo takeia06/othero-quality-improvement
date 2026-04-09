@@ -1,6 +1,8 @@
-#ifdef _DISPLAY_H_
-#define _DISPLAY_H_
+#ifndef DISPLAY_H
+#define DISPLAY_H
 
-  void display(int array[8][8]);
+#include "othello.h"
+
+void display(Othero O[8][8]);
 
 #endif
