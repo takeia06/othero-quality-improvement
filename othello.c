@@ -26,9 +26,13 @@ void flipDiscs(Othero O[8][8],bool turn,bool humanIsBlack,int num);//裏返す�
 bool isValidMoove(int num, int minplace[], int count);//ユーザ入力の判断
 
 int cpu1(Othero O[8][8],int minplace[],int count);
-int cpu2(Othero O[8][8],int minplace[],int count);
+int cpu2(Othero O[8][8],int minplace[],int count, bool turn, bool humanIsBlack);
 
-void amount(Othero O[8][8], int minplace[], int count, double score[], double weight);//裏返す量＋
+void amount(Othero O[8][8], int minplace[], int count, double score[], double weight, bool turn, bool humanIsBlack);//裏返す量＋
+
+int countFlipsInDirection(Othero O[8][8], int y, int x, int dy, int dx, int mine, int opponent);
+int countFlipsForMove(Othero O[8][8], int y, int x, int mine, int opponent);
+
 void corner(int minplace[], int count, double score[], double weight);//角＋
 void cornerFront(int minplace[], int count, double score[],double weight);//角の前ー
 void edge(int minplace[], int count, double score[],double weight);//端＋
@@ -71,6 +75,37 @@ bool readInt(int *out) {
   }
   clearInputBuffer();
   return false;
+}
+
+int countFlipsInDirection(Othero O[8][8], int y, int x, int dy, int dx, int mine, int opponent){
+  int ny = y + dy;
+  int nx = x + dx;
+  int count = 0;
+
+  while (isInside(ny, nx) && O[ny][nx].color == opponent) {
+    count++;
+    ny += dy;
+    nx += dx;
+  }
+
+  if (count > 0 && isInside(ny, nx) && O[ny][nx].color == mine) {
+    return count;
+  }
+
+  return 0;
+}
+
+int countFlipsForMove(Othero O[8][8], int y, int x, int mine, int opponent){
+  int total = 0;
+
+  for (int dy = -1; dy <= 1; dy++) {
+    for (int dx = -1; dx <= 1; dx++) {
+      if (dy == 0 && dx == 0) continue;
+      total += countFlipsInDirection(O, y, x, dy, dx, mine, opponent);
+    }
+  }
+
+  return total;
 }
 
 int main(){
@@ -322,7 +357,7 @@ void changeB(Othero O[8][8],int minplace[],bool turn,bool humanIsBlack,int count
 
 //cpu盤面更新
 void changeW(Othero O[8][8],int minplace[], bool turn,bool humanIsBlack,int count){
-  int num = cpu2(O,minplace,count);
+  int num = cpu2(O,minplace,count,turn,humanIsBlack);
   flipDiscs(O,turn,humanIsBlack,num);
 }
 
@@ -383,113 +418,94 @@ int cpu1(Othero O[8][8],int minplace[],int count){
 }
 
 //cpu(コスト計算)
-int cpu2(Othero O[8][8], int minplace[],int count){
-  int num=0;
+int cpu2(Othero O[8][8], int minplace[], int count, bool turn, bool humanIsBlack){
+  int num = 0;
   double score[count];
-  double max=-10;
+  double max = -1000000.0;
 
-  for(int i=0; i<count; i++){
-    score[i]=0; //score初期化
+  for (int i = 0; i < count; i++) {
+    score[i] = 0;
   }
-  
-  amount(O,minplace,count,score,0.9);  //裏返す量＋
-  corner(minplace,count,score,10);     //角＋
-  cornerFront(minplace,count,score,10);//角手前-
-  edge(minplace,count,score,5);        //端＋
-  edgeFront(minplace,count,score,5);   //端手前-
-  around(O,minplace,count,score,0.9);  //周りの駒の量＋
 
-  //scoreが一番大きいものを探す。
-  for(int i=0;i<count; i++){
-    if(max<score[i]){
-      max=score[i];
-      num=i;
+  amount(O, minplace, count, score, 0.9, turn, humanIsBlack);
+  corner(minplace, count, score, 10.0);
+  cornerFront(minplace, count, score, 10.0);
+  edge(minplace, count, score, 5.0);
+  edgeFront(minplace, count, score, 5.0);
+  around(O, minplace, count, score, 0.9);
+
+  for (int i = 0; i < count; i++) {
+    if (max < score[i]) {
+      max = score[i];
+      num = i;
     }
   }
-  printf("[%f]\n",score[num]);
+
+  printf("[score=%f]\n", score[num]);
   return minplace[num];
 }
 
 
 //ひっくり返せる数でスコアを決める。
-void amount(Othero O[8][8], int minplace[], int count, double score[], double weight){
-  int dx,dy;
-  int opponent=BLACK;
-  int mine=WHITE;
-  for(int i=0;i<count;i++){
+void amount(Othero O[8][8], int minplace[], int count, double score[], double weight, bool turn, bool humanIsBlack){
+  int mine = currentStone(turn, humanIsBlack);
+  int opponent = opponentStone(turn, humanIsBlack);
+
+  for (int i = 0; i < count; i++) {
     int x = minplace[i] % 10;
     int y = minplace[i] / 10;
 
-    for(dx=-1;dx<=1;dx++){
-      for (dy = -1; dy <= 1; dy++) {
-        // x,yと同じ座標はスキップ
-        if (dx == 0 && dy == 0) continue;
-
-        // 一つ隣の座標
-        int nx = x + dx;
-        int ny = y + dy;
-
-        // 隣が盤面の内部であり、かつ敵の石がある間ループを続ける
-        while (isInside(ny, nx) && O[ny][nx].color == opponent) {
-          nx += dx;
-          ny += dy;
-        }
-        // ループが終わった場所が盤面内で、かつ自分の石があるなら
-        if (isInside(ny, nx) && O[ny][nx].color == mine) {
-          // ひっくり返す処理を行う
-          while (true) {
-            nx -= dx;
-            ny -= dy;
-            if (nx == x && ny == y) break;
-            O[ny][nx].color = mine;
-            score[i]=score[i]+(1*weight);//重み
-            }
-          }
-      }
-    }
+    int flips = countFlipsForMove(O, y, x, mine, opponent);
+    score[i] += flips * weight;
   }
 }
 
 //角だったら加点
 void corner(int minplace[], int count, double score[], double weight){
-  for(int i=0;i<count;i++){
+  for (int i = 0; i < count; i++) {
     int x = minplace[i] % 10;
     int y = minplace[i] / 10;
-    if(x==(1||7)&&y==(1||7)){
-      score[i]=score[i]+(1*weight);
+
+    if ((x == 0 || x == 7) && (y == 0 || y == 7)) {
+      score[i] += weight;
     }
   }
 }
 
 //角の手前だったら減点
 void cornerFront(int minplace[], int count, double score[], double weight){
-  for(int i=0;i<count;i++){
+  for (int i = 0; i < count; i++) {
     int x = minplace[i] % 10;
     int y = minplace[i] / 10;
-    if((y==(0||1||6||7)&&(x==(1||6)))||(y==(1||6)&&(x==(0||7)))){
-      score[i]=score[i]-(1*weight);
+
+    if (((y == 0 || y == 1 || y == 6 || y == 7) && (x == 1 || x == 6)) ||
+        ((y == 1 || y == 6) && (x == 0 || x == 7))) {
+      score[i] -= weight;
     }
   }
 }
 
 //端だったら加点
 void edge(int minplace[], int count, double score[], double weight){
-  for(int i=0; i<count; i++){
+  for (int i = 0; i < count; i++) {
     int x = minplace[i] % 10;
     int y = minplace[i] / 10;
-    if((y==(0||7)&&x==(2||3||4||5))||(y==(2||3||4||5)&&(x==(0||7)))){
-      score[i]=score[i]+(1*weight);
+
+    if (((y == 0 || y == 7) && (x == 2 || x == 3 || x == 4 || x == 5)) ||
+        ((x == 0 || x == 7) && (y == 2 || y == 3 || y == 4 || y == 5))) {
+      score[i] += weight;
     }
   }
 }
 
 //端の手前だったら減点
 void edgeFront(int minplace[], int count, double score[], double weight){
-  for(int i=0; i<count; i++){
+  for (int i = 0; i < count; i++) {
     int x = minplace[i] % 10;
     int y = minplace[i] / 10;
-    if(y==(1||6)||x==(1||6)){
-      score[i]=score[i]-(1*weight);
+
+    if (y == 1 || y == 6 || x == 1 || x == 6) {
+      score[i] -= weight;
     }
   }
 }
