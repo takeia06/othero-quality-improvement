@@ -14,13 +14,12 @@ typedef struct Othero
 } Othero;
 
 void display(Othero O[8][8]); //表示関数
-void judge(Othero O[8][8]);  //勝敗関数
+void judge(Othero O[8][8], bool humanIsBlack);  //勝敗関数
 bool stop(Othero O[8][8]);  //盤面がどちらかの色のみ、またはNONEがなくなったとき止める
-int canput(Othero O[8][8], int h, int w,bool turn,bool humanIsBlack); //置ける場所を探す。
+int canput(Othero O[8][8], int y, int x, bool turn, bool humanIsBlack); //置ける場所を探す。
 bool searchDirection(Othero O[8][8], int y, int x, int dy, int dx, int mine, int opponent); //置ける場所を探すときの、特定の方向を探す関数
-bool changeB(Othero O[8][8],int minplace[],bool turn,bool humanIsBlack,int count);//ユーザ入力で置く場所決定
+void changeB(Othero O[8][8],int minplace[],bool turn,bool humanIsBlack,int count);//ユーザ入力で置く場所決定
 void changeW(Othero O[8][8],int minplace[],bool turn,bool humanIsBlack,int count);//cpu側の置く場所決定
-void changeB2(Othero O[8][8],int minplace[],bool turn,bool humanIsBlack,int count);//ユーザ入力しないで置く場所決定
 
 void flipDiscs(Othero O[8][8],bool turn,bool humanIsBlack,int num);//裏返す。
 
@@ -40,6 +39,9 @@ int currentStone(bool turn, bool humanIsBlack); //自分の石を返す
 int opponentStone(bool turn, bool humanIsBlack); //相手の石を返す
 bool isInside(int y, int x); //盤面内かどうか
 
+void clearInputBuffer(void);
+bool readInt(int *out);
+
 int currentStone(bool turn, bool humanIsBlack) {
     if (turn == true) {
         return humanIsBlack ? BLACK : WHITE;
@@ -56,6 +58,19 @@ int opponentStone(bool turn, bool humanIsBlack) {
 //端・角で落ちないようにする
 bool isInside(int y, int x) {
     return (y >= 0 && y < 8 && x >= 0 && x < 8);
+}
+
+void clearInputBuffer(void) {
+    int c;
+    while ((c = getchar()) != '\n' && c != EOF);
+}
+
+bool readInt(int *out) {
+  if (scanf("%d", out) == 1) {
+    return true;
+  }
+  clearInputBuffer();
+  return false;
 }
 
 int main(){
@@ -81,21 +96,31 @@ int main(){
   O[4][4].color = WHITE;
 
   // ターン決め
-  printf("先攻(1)、後攻(2)を選択してください。:");
-  scanf("%d", &num1);
+  while (true) {
+    printf("先行(1)、後攻(2)を選択してください。：");
 
-  if (num1 == 1) { 
-    humanIsBlack = true; // 人間が黒
-    turn = true; // 黒が先手なので人間から開始
-  }  else {  
-    humanIsBlack = false; // 人間が白
-    turn = false; // 黒が先手なのでCPUから開始
+    if(!readInt(&num1)) {
+      printf("数字で入力してください。\n");
+      continue;
+    }
+    
+    if (num1 == 1) {
+      humanIsBlack = true;
+      turn = true;
+      break;
+    } else if (num1 == 2) {
+      humanIsBlack = false;
+      turn = false;
+      break;
+    } else {
+      printf("1か2を入力してください。\n");
+    }
   }
 
   
 
   // 60回繰り返す
-  for(i=0;i<60;i++){
+  for(int turnCount=0;turnCount<60;turnCount++){
     display(O); // 盤面表示
     // can_putの初期化
     count = 0;
@@ -105,11 +130,11 @@ int main(){
     k = 0;
 
     //置ける場所探索
-    for (i = 0; i < 8; i++){
-      for (j = 0; j < 8; j++){
-        if (O[i][j].color == NONE){
+    for (int y = 0; y < 8; y++){
+      for (int x = 0; x < 8; x++){
+        if (O[y][x].color == NONE){
 
-          num2 = canput(O, i, j, turn, humanIsBlack);
+          num2 = canput(O, y, x, turn, humanIsBlack);
           if(num2!=-1){
             can_put[k]=num2;
             k++;
@@ -160,7 +185,7 @@ int main(){
     if(stop(O)==false) break;
 
   }
-  judge(O); // 終了判定
+  judge(O, humanIsBlack); // 終了判定
   printf("終了しました。Enterキーを押すと閉じます。");
   getchar(); 
   getchar();
@@ -189,28 +214,29 @@ void display(Othero O[8][8]){
 }
 
 //(2)終了判定関数
-void judge(Othero O[8][8])
+void judge(Othero O[8][8], bool humanIsBlack)
 {
-  int i, j;
-  int b=0;
-  int w=0;
-  int sum = 0;
-  for (i = 0; i < 8; i++)
-  {
-    for (j = 0; j < 8; j++)
-    {
-      if(O[i][j].color==BLACK) b+=O[i][j].color;
-      else w+=O[i][j].color;
+  int black = 0;
+  int white = 0;
+
+  for (int y = 0; y < 8; y++)  {
+    for (int x = 0; x < 8; x++)    {
+      if (O[y][x].color == BLACK)   black++;
+      else if (O[y][x].color == WHITE)  white++;
     }
   }
-  sum=b+w;
 
-  if (sum > 0)
-    printf("あなたの勝ちです。黒：%d、白：%d",abs(b),abs(w));
-  else if (sum < 0)
-    printf("あなたの負けです。黒：%d、白：%d",abs(b),abs(w));
-  else if (sum == 0)
-    printf("引き分けです。黒：%d、白：%d",abs(b),abs(w));
+  if (black == white) {
+    printf("引き分けです。黒：%d、白：%d\n", black, white);
+    return;
+  }
+
+  bool humanWin = humanIsBlack ? (black > white) : (white > black);
+  if (humanWin) {
+    printf("あなたの勝ちです！黒：%d、白：%d\n", black, white);
+  } else {
+    printf("あなたの負けです。黒：%d、白：%d\n", black, white);
+  }
 }
 
 //色が一色になったとき、またはNONEがなくなったとき止める。
@@ -274,17 +300,24 @@ int canput(Othero O[8][8], int y, int x, bool turn, bool humanIsBlack){
 
 
 //(4)ユーザ入力で盤面更新黒
-bool changeB(Othero O[8][8],int minplace[],bool turn,bool humanIsBlack,int count){
+void changeB(Othero O[8][8],int minplace[],bool turn,bool humanIsBlack,int count){
   int num;
-  printf("置く場所を入力してください。[3,4] → 34 : ");
-  scanf("%d", &num);
 
-  if(isValidMoove(num,minplace,count)==true){
-    flipDiscs(O,turn,humanIsBlack,num);
-    return true;
+  while (true) {
+    printf("置く場所を入力してください。[3,4] -> 34：");
+    
+    if (!readInt(&num)) {
+      printf("数字で入力してください。\n");
+      continue;
+    }
+
+    if(!isValidMoove(num, minplace, count)) {
+      continue;
+    }
+
+    flipDiscs(O, turn, humanIsBlack, num);
+    return;
   }
-
-  return false;
 }
 
 //cpu盤面更新
@@ -293,11 +326,6 @@ void changeW(Othero O[8][8],int minplace[], bool turn,bool humanIsBlack,int coun
   flipDiscs(O,turn,humanIsBlack,num);
 }
 
-//ユーザ入力なし盤面更新黒
-void changeB2(Othero O[8][8],int minplace[], bool turn,bool humanIsBlack,int count){
-  int num = cpu1(O,minplace,count);
-  flipDiscs(O,turn,humanIsBlack,num);
-}
 
 //裏返す
 void flipDiscs(Othero O[8][8],bool turn,bool humanIsBlack,int num){
